@@ -1,0 +1,17 @@
+# Archivo de contraseñas / credenciales
+contra.md
+
+# VSCode
+.vscode/
+
+# Angular / Frontend
+frontend/chatbot-recetas/node_modules/
+frontend/chatbot-recetas/dist/
+frontend/chatbot-recetas/.angular/
+
+# Variables de entorno de producción
+frontend/chatbot-recetas/src/environments/environment.prod.ts
+
+# Logs
+*.log
+npm-debug.log*

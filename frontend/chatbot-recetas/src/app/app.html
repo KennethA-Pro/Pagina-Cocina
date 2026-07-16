@@ -1,0 +1,181 @@
+<div class="chat-wrapper">
+
+  <!-- Header -->
+  <header class="chat-header">
+    <div class="header-info">
+      <div class="avatar">🍳</div>
+      <div>
+        <h1>{{ appName }}</h1>
+        <span>{{ appSubtitle }}</span>
+      </div>
+    </div>
+    <button class="btn-clear" (click)="clearChat()" title="Limpiar chat">🗑️</button>
+  </header>
+
+  <!-- Mensajes -->
+  <div class="messages-container" #messagesContainer>
+
+    <!-- Bienvenida -->
+    @if (messages.length === 0) {
+      <div class="welcome">
+        <div class="welcome-icon">👨‍🍳</div>
+        <h2>¡Hola! Soy tu Chef IA</h2>
+        <p>Dime qué ingredientes tienes o toma una foto de tu refri y te sugiero recetas.</p>
+        <div class="suggestions">
+          <button class="suggestion-chip" (click)="userInput = 'Tengo huevos, tomate, queso y cebolla'; sendMessage()">
+            🥚 Huevos, tomate y queso
+          </button>
+          <button class="suggestion-chip" (click)="userInput = 'Tengo pollo, arroz y zanahoria'; sendMessage()">
+            🍗 Pollo, arroz y zanahoria
+          </button>
+          <button class="suggestion-chip" (click)="userInput = 'Tengo pasta y atún'; sendMessage()">
+            🍝 Pasta y atún
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- Lista de mensajes -->
+    @for (msg of messages; track $index) {
+      <div class="message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'">
+
+        @if (msg.role === 'assistant') {
+          <div class="msg-avatar">🍳</div>
+        }
+
+        <div class="msg-bubble">
+          <!-- Imagen enviada por el usuario -->
+          @if (msg.imagePreview) {
+            <img [src]="msg.imagePreview" alt="Imagen enviada" class="msg-image" />
+          }
+
+          <!-- Texto del mensaje -->
+          @if (msg.content && msg.content !== '📸 Imagen enviada') {
+            <p [innerHTML]="formatText(msg.content)"></p>
+          } @else if (!msg.imagePreview) {
+            <p>{{ msg.content }}</p>
+          }
+
+          <!-- Imagen generada por IA -->
+          @if (msg.generatedImage) {
+            <div class="generated-image-wrap">
+              <img [src]="msg.generatedImage" alt="Imagen de la receta" class="generated-image" />
+              <span class="generated-label">✨ Imagen generada por IA</span>
+            </div>
+          }
+
+          <!-- Video de YouTube -->
+          @if (msg.videoUrl) {
+            <a class="video-card" [href]="msg.videoUrl" target="_blank" rel="noopener">
+              @if (msg.videoThumbnail) {
+                <div class="video-thumb-wrap">
+                  <img [src]="msg.videoThumbnail" alt="Miniatura del video" class="video-thumb" />
+                  <div class="play-overlay">▶</div>
+                </div>
+              }
+              <div class="video-info">
+                <span class="video-badge">▶ YouTube</span>
+                <p class="video-title">{{ msg.videoTitulo || 'Ver video de preparación' }}</p>
+                <span class="video-cta">Ver receta en video →</span>
+              </div>
+            </a>
+          }
+
+          <!-- Tarjetas de recetas seleccionables -->
+          @if (msg.recipeCards && msg.recipeCards.length > 0) {
+            <div class="recipe-cards">
+              @for (card of msg.recipeCards; track card.id) {
+                <button class="recipe-card" (click)="selectRecipe(card)">
+                  <div class="recipe-card-header">
+                    <span class="recipe-name">{{ card.nombre }}</span>
+                    <div class="recipe-meta">
+                      <span class="badge time">⏱ {{ card.tiempo }}</span>
+                      <span class="badge diff">{{ card.dificultad }}</span>
+                    </div>
+                  </div>
+                  <ul class="recipe-ingredients">
+                    @for (ing of card.ingredientes; track $index) {
+                      <li>{{ ing }}</li>
+                    }
+                  </ul>
+                  <span class="recipe-cta">Ver pasos →</span>
+                </button>
+              }
+            </div>
+          }
+
+          <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
+        </div>
+
+      </div>
+    }
+
+    <!-- ===== Animación de cocinando ===== -->
+    @if (isCooking()) {
+      <div class="message assistant cooking-message">
+        <div class="msg-avatar">🍳</div>
+        <div class="msg-bubble cooking-bubble">
+          <div class="cooking-scene">
+            <div class="pan-wrap">
+              <span class="pan">🍳</span>
+              <span class="steam s1">~</span>
+              <span class="steam s2">~</span>
+              <span class="steam s3">~</span>
+            </div>
+            <div class="fire-row">
+              <span class="flame">🔥</span>
+            </div>
+          </div>
+          <p class="cooking-label">{{ cookingLabel() }}</p>
+        </div>
+      </div>
+    }
+
+    <!-- Typing indicator normal (sin animación de cocina) -->
+    @if (isLoading() && !isCooking()) {
+      <div class="message assistant">
+        <div class="msg-avatar">🍳</div>
+        <div class="msg-bubble typing">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    }
+
+  </div>
+
+  <!-- Error -->
+  @if (errorMessage()) {
+    <div class="error-banner">⚠️ {{ errorMessage() }}</div>
+  }
+
+  <!-- Preview imagen seleccionada -->
+  @if (imagePreview()) {
+    <div class="image-preview-bar">
+      <img [src]="imagePreview()!" alt="Preview" />
+      <span>Imagen lista para enviar</span>
+      <button (click)="removeImage()">✕</button>
+    </div>
+  }
+
+  <!-- Input -->
+  <div class="input-area">
+    <input type="file" accept="image/*" #fileInput (change)="onFileSelected($event)" style="display:none" />
+
+    <button class="btn-attach" (click)="triggerFileInput()" title="Adjuntar imagen" [disabled]="isLoading()">
+      📷
+    </button>
+
+    <textarea
+      [(ngModel)]="userInput"
+      (keydown)="onKeyDown($event)"
+      placeholder="¿Qué ingredientes tienes?"
+      [disabled]="isLoading()"
+      rows="1"
+    ></textarea>
+
+    <button class="btn-send" (click)="sendMessage()" [disabled]="isLoading() || (!userInput.trim() && !selectedImage())">
+      @if (isLoading()) { ⏳ } @else { ➤ }
+    </button>
+  </div>
+
+</div>

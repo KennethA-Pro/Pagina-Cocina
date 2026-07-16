@@ -1,0 +1,811 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot-recetas",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        6608,
+        1136
+      ],
+      "id": "f91bb789-0584-4f1f-bf0d-52a1ba7fca2a",
+      "name": "Webhook",
+      "webhookId": "chatbot-recetas-001"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS chat_historial (\n  id SERIAL PRIMARY KEY,\n  usuario_id INTEGER NOT NULL DEFAULT 1,\n  rol VARCHAR(10) NOT NULL,\n  mensaje TEXT NOT NULL,\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\nCREATE TABLE IF NOT EXISTS usuarios (\n  id SERIAL PRIMARY KEY,\n  nombre VARCHAR(100) DEFAULT 'Usuario',\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\nINSERT INTO usuarios (id, nombre)\nVALUES (1, 'Usuario')\nON CONFLICT (id) DO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        6816,
+        1136
+      ],
+      "id": "98eaadb4-2031-45f3-a0df-6439f47d3b60",
+      "name": "crear-tablas",
+      "credentials": {
+        "postgres": {
+          "id": "UIruvdPfXNYyI7ib",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "usuario_id",
+              "value": "=1",
+              "type": "number"
+            },
+            {
+              "id": "a2",
+              "name": "mensaje",
+              "value": "={{ $('Webhook').item.json.body.message ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "tiene_imagen",
+              "value": "={{ !!$('Webhook').item.binary?.image }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7008,
+        1136
+      ],
+      "id": "68085b45-60e1-4960-b4e9-4bd372e8c2fe",
+      "name": "extraer-datos"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.tiene_imagen }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7216,
+        1136
+      ],
+      "id": "0f96ab24-0d3a-4f5b-9214-86a46b87cf88",
+      "name": "tiene-imagen"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookBinary = $('Webhook').item.binary;\nif (webhookBinary && webhookBinary.image) {\n  $input.first().binary = { imagen: webhookBinary.image };\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7408,
+        768
+      ],
+      "id": "6f1ffd66-5637-4bf1-9e28-5f42eb2cf736",
+      "name": "restaurar-binario"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "Analiza esta imagen y lista todos los ingredientes o alimentos que puedas identificar. Si es una foto de un refrigerador o despensa, describe todos los productos visibles con la mayor precisión posible. Responde solo con la lista de ingredientes encontrados, sin texto adicional.",
+        "inputType": "binary",
+        "binaryPropertyName": "imagen",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        928
+      ],
+      "id": "360606fd-6004-41bb-b1be-797ef1d58235",
+      "name": "analizar-imagen",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VpfIMZsgSLASkyoN",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1",
+              "name": "mensaje_final",
+              "value": "={{ 'Tengo estos ingredientes en mi refri/despensa:\\n' + $json.content.parts[0].text + ($('extraer-datos').item.json.mensaje ? '\\nAdemás quiero agregar: ' + $('extraer-datos').item.json.mensaje : '') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7616,
+        928
+      ],
+      "id": "ae033677-e535-41a9-a739-fe1c8a7bc1ba",
+      "name": "msg-imagen"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "mensaje_final",
+              "value": "={{ $('extraer-datos').item.json.mensaje }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7616,
+        1328
+      ],
+      "id": "0d3afadf-2bd7-40e1-8412-09c682ad2298",
+      "name": "msg-texto"
+    },
+    {
+      "parameters": {
+        "jsCode": "const msgFinal = $input.first().json.mensaje_final || '';\nreturn [{ json: { mensaje_final: msgFinal } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7808,
+        1136
+      ],
+      "id": "b26f47c3-ab9d-4bbe-9394-bc42b4646b29",
+      "name": "guardar-msg"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT rol, mensaje FROM chat_historial\nWHERE usuario_id = 1\nORDER BY created_at DESC\nLIMIT 20;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        8016,
+        1136
+      ],
+      "id": "7e8e1410-565c-4785-83bd-51f8d532c779",
+      "name": "obtener-historial",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "UIruvdPfXNYyI7ib",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst historialOrdenado = [...rows].reverse();\nconst contexto = historialOrdenado\n  .map(r => {\n    const rol = r.json.rol === 'user' ? 'Usuario' : 'Asistente';\n    return `${rol}: ${r.json.mensaje}`;\n  })\n  .join('\\n');\n\nconst msgActual = $('guardar-msg').first().json.mensaje_final || '';\n\nreturn [{\n  json: {\n    contexto_historial: contexto,\n    mensaje_actual: msgActual\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8208,
+        1136
+      ],
+      "id": "1813fd33-7b65-4f18-9b41-cab246ffa5a6",
+      "name": "preparar-contexto"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Historial de conversacion anterior:\n{{ $json.contexto_historial }}\n\nMensaje actual del usuario:\n{{ $json.mensaje_actual }}",
+        "options": {
+          "systemMessage": "Eres un asistente de cocina conciso y amigable. Responde SIEMPRE en español, con mensajes CORTOS (máximo 3-4 líneas de texto).\n\nREGLAS DE FORMATO:\n- Usa **negrita** para nombres de recetas o pasos clave.\n- Cuando el usuario mencione o muestre ingredientes (sin haber elegido receta), responde con UNA sola línea de texto breve (ej: '¡Con eso puedo sugerirte estas opciones! 🍽️') seguida del bloque de recetas en este formato EXACTO:\n\n```recetas\n[\n  {\n    \"id\": \"1\",\n    \"nombre\": \"Nombre de la receta\",\n    \"ingredientes\": [\"ingrediente 1\", \"ingrediente 2\"],\n    \"tiempo\": \"20 min\",\n    \"dificultad\": \"Fácil\"\n  },\n  {\n    \"id\": \"2\",\n    \"nombre\": \"Nombre de la receta\",\n    \"ingredientes\": [\"ingrediente 1\", \"ingrediente 2\"],\n    \"tiempo\": \"15 min\",\n    \"dificultad\": \"Muy fácil\"\n  },\n  {\n    \"id\": \"3\",\n    \"nombre\": \"Nombre de la receta\",\n    \"ingredientes\": [\"ingrediente 1\"],\n    \"tiempo\": \"30 min\",\n    \"dificultad\": \"Media\"\n  }\n]\n```\n\n- Cuando el usuario pida los pasos de una receta específica, responde con los pasos numerados, cortos y claros. Máximo 6 pasos. Sin texto extra al inicio.\n- Si el usuario hace una pregunta de cocina general, responde en 2-3 líneas máximo.\n- NUNCA repitas los ingredientes que ya conoces en el texto, ya están en las tarjetas.\n- NUNCA respondas sobre temas fuera de cocina. Si preguntan algo ajeno, di: 'Solo puedo ayudarte con recetas 🍳 ¿Qué tienes en tu cocina?'\n\nOFRECE siempre 2-3 recetas cuando el usuario dé ingredientes, nunca más de 3."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        8416,
+        1136
+      ],
+      "id": "9ceed7a1-7321-4045-97ba-32fb09def9c5",
+      "name": "agente-recetas",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        8416,
+        1312
+      ],
+      "id": "582e7d21-1123-421f-bb67-a4aa15e186fe",
+      "name": "groq-model",
+      "credentials": {
+        "groqApi": {
+          "id": "R7fz5MuuaXbhyl17",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detectar si el usuario pidió los pasos de una receta específica\nconst output = $('agente-recetas').item.json.output || '';\nconst mensajeUsuario = $('preparar-contexto').item.json.mensaje_actual || '';\n\n// Buscar nombre de receta entre comillas (ej: Quiero hacer \"Arroz con pollo\")\n// O extraerlo de frases como 'hacer X detallado', 'preparar X'\nconst matchComillas = mensajeUsuario.match(/[\"«\u201c](.*?)[\"»\u201d]/);\nconst matchHacer = mensajeUsuario.match(/(?:hacer|preparar|cocinar)\\s+(?:la\\s+|el\\s+|los\\s+|las\\s+)?([\\w\\s]+?)(?:,|\\.|$)/i);\nconst nombreReceta = matchComillas ? matchComillas[1].trim()\n                   : matchHacer   ? matchHacer[1].trim()\n                   : null;\n\n// Buscar video si el usuario pide pasos/receta\nconst pidePasos = /pasos|preparar|hacer|cocinar|dame|cómo/i.test(mensajeUsuario) && nombreReceta;\n\nreturn [{\n  json: {\n    output,\n    nombre_receta: nombreReceta || '',\n    buscar_video: !!pidePasos,\n    imagen_url: null\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8672,
+        1136
+      ],
+      "id": "f82286bd-0bc0-4009-9704-45be035d31f3",
+      "name": "detectar-receta"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d1",
+              "leftValue": "={{ $json.generar_imagen }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8816,
+        1136
+      ],
+      "id": "6e3bb8f3-7202-4c31-b579-a814c73bc8c2",
+      "name": "if-generar-imagen"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3.1-flash-image-preview"
+        },
+        "prompt": "={{ 'Food photography, professional shot of ' + $json.nombre_receta + ', served on a plate, vibrant colors, appetizing, restaurant quality, soft natural lighting, top-down view' }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        9008,
+        976
+      ],
+      "id": "b51aa333-ab58-4d93-98d7-60117fe0569f",
+      "name": "generar-imagen-receta",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VpfIMZsgSLASkyoN",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer imagen base64 del output del nodo Gemini imagen\nconst item = $input.first();\nlet imagenUrl = null;\n\ntry {\n  // El nodo googleGemini image devuelve el binario en item.binary\n  const binary = item.binary;\n  if (binary) {\n    const key = Object.keys(binary)[0];\n    if (key) {\n      const b64 = binary[key].data;\n      const mime = binary[key].mimeType || 'image/png';\n      if (b64) imagenUrl = `data:${mime};base64,${b64}`;\n    }\n  }\n} catch (e) {}\n\nconst det = $('detectar-receta').item.json;\nconst output = det.output || '';\nconst nombreReceta = det.nombre_receta || '';\nreturn [{ json: { output, imagen_url: imagenUrl, nombre_receta: nombreReceta, buscar_video: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9216,
+        976
+      ],
+      "id": "869194cf-965a-4e6d-9362-6317f78d2466",
+      "name": "preparar-imagen",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sin imagen: solo devolver el output del agente con nombre de receta\nconst output = $('detectar-receta').item.json.output || '';\nconst nombreReceta = $('detectar-receta').item.json.nombre_receta || '';\nconst generarImagen = $('detectar-receta').item.json.generar_imagen || false;\nreturn [{ json: { output, imagen_url: null, nombre_receta: nombreReceta, buscar_video: generarImagen } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9008,
+        1296
+      ],
+      "id": "586ea11a-ff92-426d-ae59-4854a7127691",
+      "name": "sin-imagen"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1",
+              "leftValue": "={{ $json.buscar_video }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9408,
+        1136
+      ],
+      "id": "40e58551-18ce-48db-b411-4d36e4d4e4fb",
+      "name": "if-buscar-video"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construir URL de búsqueda de YouTube sin necesidad de API key\nconst prev = $('detectar-receta').first().json;\nconst nombreReceta = prev.nombre_receta || '';\n\nconst query = encodeURIComponent('como preparar ' + nombreReceta + ' receta paso a paso');\nconst videoUrl = `https://www.youtube.com/results?search_query=${query}`;\n\n// Thumbnail genérico de YouTube para búsquedas\nconst videoThumbnail = `https://img.youtube.com/vi/default/mqdefault.jpg`;\n\nreturn [{ json: {\n  output: prev.output,\n  imagen_url: prev.imagen_url || null,\n  video_url: videoUrl,\n  video_titulo: `Ver videos: cómo preparar ${nombreReceta}`,\n  video_thumbnail: null\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9616,
+        976
+      ],
+      "id": "49b542fd-df27-4aca-bf20-7e598dc2f1eb",
+      "name": "buscar-video-youtube"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass-through: la URL ya viene lista desde buscar-video-youtube\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9808,
+        976
+      ],
+      "id": "2f6dbfa2-6cc7-4ab0-a17f-c4d9981500ba",
+      "name": "preparar-video"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sin video: pasar output limpio\nconst prev = $('detectar-receta').first().json;\nreturn [{ json: {\n  output: prev.output,\n  imagen_url: prev.imagen_url || null,\n  video_url: null,\n  video_titulo: null,\n  video_thumbnail: null\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9616,
+        1296
+      ],
+      "id": "a12c417a-d937-4190-86fd-ddf1559b7669",
+      "name": "sin-video"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO chat_historial (usuario_id, rol, mensaje)\nVALUES\n  (1, 'user', '{{ $('preparar-contexto').item.json.mensaje_actual.replace(/'/g, \"''\") }}'),\n  (1, 'assistant', '{{ $('detectar-receta').item.json.output.replace(/'/g, \"''\") }}');\n\nDELETE FROM chat_historial\nWHERE usuario_id = 1\n  AND id NOT IN (\n    SELECT id FROM chat_historial\n    WHERE usuario_id = 1\n    ORDER BY created_at DESC\n    LIMIT 40\n  );",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        10016,
+        976
+      ],
+      "id": "9becbc97-5356-463f-9fbc-d7d3f1fc9149",
+      "name": "guardar-historial",
+      "credentials": {
+        "postgres": {
+          "id": "UIruvdPfXNYyI7ib",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ respuesta: $json.output, imagen_url: $json.imagen_url, video_url: $json.video_url, video_titulo: $json.video_titulo, video_thumbnail: $json.video_thumbnail, usuario_id: 1 }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        10016,
+        1296
+      ],
+      "id": "ec3da4f2-a427-4d34-ad85-cf3260ace14e",
+      "name": "responder"
+    },
+    {
+      "parameters": {
+        "content": "🍳 Chatbot de Recetas v3\n\n📥 Webhook recibe:\n  - body.message: texto del usuario\n  - binary.imagen: foto (multipart)\n\n🔄 Flujo:\n1. Crear tablas si no existen\n2. Si hay imagen → Gemini extrae ingredientes\n3. guardar-msg unifica el mensaje final\n4. obtener-historial lee últimos 20 mensajes\n5. preparar-contexto combina historial + mensaje\n6. agente-recetas responde en formato corto:\n   - Si da sugerencias: bloque ```recetas JSON\n   - Si da pasos: texto numerado breve\n7. detectar-receta: detecta si hay que generar imagen/video\n8. if-generar-imagen:\n   - SÍ → API Imagen genera foto de la receta\n   - NO → sin-imagen (pasa nombre_receta igual)\n9. if-buscar-video:\n   - SÍ → YouTube Data API busca video\n   - NO → sin-video\n10. guardar-historial guarda en Postgres\n11. responder devuelve:\n    { respuesta, imagen_url, video_url, video_titulo, video_thumbnail }\n\n⚙️ Claves necesarias:\n  - YOUTUBE_API_KEY en nodo buscar-video-youtube\n  - GEMINI_CREDENTIAL_ID en nodo generar-imagen-receta\n  - URL webhook en environment.ts de Angular",
+        "height": 440,
+        "width": 580,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6608,
+        624
+      ],
+      "id": "2f0d08de-beea-472d-8706-bf6c630b68f8",
+      "name": "nota-info"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "crear-tablas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "crear-tablas": {
+      "main": [
+        [
+          {
+            "node": "extraer-datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extraer-datos": {
+      "main": [
+        [
+          {
+            "node": "tiene-imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "tiene-imagen": {
+      "main": [
+        [
+          {
+            "node": "restaurar-binario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "msg-texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "restaurar-binario": {
+      "main": [
+        [
+          {
+            "node": "analizar-imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "analizar-imagen": {
+      "main": [
+        [
+          {
+            "node": "msg-imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "msg-imagen": {
+      "main": [
+        [
+          {
+            "node": "guardar-msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "msg-texto": {
+      "main": [
+        [
+          {
+            "node": "guardar-msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "guardar-msg": {
+      "main": [
+        [
+          {
+            "node": "obtener-historial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "obtener-historial": {
+      "main": [
+        [
+          {
+            "node": "preparar-contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preparar-contexto": {
+      "main": [
+        [
+          {
+            "node": "agente-recetas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agente-recetas": {
+      "main": [
+        [
+          {
+            "node": "detectar-receta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "groq-model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agente-recetas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "detectar-receta": {
+      "main": [
+        [
+          {
+            "node": "if-buscar-video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if-generar-imagen": {
+      "main": [
+        [
+          {
+            "node": "generar-imagen-receta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "sin-imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generar-imagen-receta": {
+      "main": [
+        [
+          {
+            "node": "preparar-imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preparar-imagen": {
+      "main": [
+        [
+          {
+            "node": "if-buscar-video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sin-imagen": {
+      "main": [
+        [
+          {
+            "node": "if-buscar-video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if-buscar-video": {
+      "main": [
+        [
+          {
+            "node": "buscar-video-youtube",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "sin-video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar-video-youtube": {
+      "main": [
+        [
+          {
+            "node": "preparar-video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preparar-video": {
+      "main": [
+        [
+          {
+            "node": "guardar-historial",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sin-video": {
+      "main": [
+        [
+          {
+            "node": "guardar-historial",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "091c7ef13088926b3f640821ea8b501201c19f8315e9f5c175216b32bbee66ac"
+  }
+}
