@@ -1,0 +1,162 @@
+<div class="auth-backdrop" (click)="onBackdropClick($event)">
+  <div class="auth-modal" role="dialog" aria-modal="true" aria-label="Autenticación">
+
+    <!-- Cerrar -->
+    <button class="auth-close" (click)="cerrar.emit()" aria-label="Cerrar">✕</button>
+
+    <!-- Logo -->
+    <div class="auth-logo">🍳</div>
+    <h2 class="auth-title">Chef IA</h2>
+    <p class="auth-desc">
+      @if (tab() === 'login') {
+        Inicia sesión para acceder al chef completo con historial, imágenes y videos.
+      } @else {
+        Crea tu cuenta gratis y accede a todas las funciones.
+      }
+    </p>
+
+    <!-- Tabs -->
+    <div class="auth-tabs" role="tablist">
+      <button
+        role="tab"
+        [class.active]="tab() === 'login'"
+        (click)="setTab('login')"
+        [attr.aria-selected]="tab() === 'login'"
+      >
+        Iniciar sesión
+      </button>
+      <button
+        role="tab"
+        [class.active]="tab() === 'registro'"
+        (click)="setTab('registro')"
+        [attr.aria-selected]="tab() === 'registro'"
+      >
+        Registrarse
+      </button>
+    </div>
+
+    <!-- Error / Success -->
+    @if (errorMsg()) {
+      <div class="auth-alert error" role="alert">⚠️ {{ errorMsg() }}</div>
+    }
+
+    <!-- ===== Formulario Login ===== -->
+    @if (tab() === 'login') {
+      <form class="auth-form" (ngSubmit)="submitLogin()" #loginForm="ngForm" novalidate>
+
+        <div class="form-group">
+          <label for="login-email">Correo electrónico</label>
+          <input
+            id="login-email"
+            type="email"
+            [(ngModel)]="loginEmail"
+            name="email"
+            placeholder="tu@email.com"
+            autocomplete="email"
+            [disabled]="isLoading()"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="login-password">Contraseña</label>
+          <input
+            id="login-password"
+            type="password"
+            [(ngModel)]="loginPassword"
+            name="password"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            [disabled]="isLoading()"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn-auth" [disabled]="isLoading()">
+          @if (isLoading()) { <span class="spinner"></span> Ingresando... }
+          @else { Iniciar sesión }
+        </button>
+
+      </form>
+
+      <p class="auth-switch">
+        ¿No tienes cuenta?
+        <button class="link-btn" (click)="setTab('registro')">Regístrate gratis</button>
+      </p>
+    }
+
+    <!-- ===== Formulario Registro ===== -->
+    @if (tab() === 'registro') {
+      <form class="auth-form" (ngSubmit)="submitRegistro()" novalidate>
+
+        <div class="form-group">
+          <label for="reg-nombre">Nombre</label>
+          <input
+            id="reg-nombre"
+            type="text"
+            [(ngModel)]="regNombre"
+            name="nombre"
+            placeholder="Tu nombre"
+            autocomplete="name"
+            [disabled]="isLoading()"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-email">Correo electrónico</label>
+          <input
+            id="reg-email"
+            type="email"
+            [(ngModel)]="regEmail"
+            name="email"
+            placeholder="tu@email.com"
+            autocomplete="email"
+            [disabled]="isLoading()"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password">Contraseña</label>
+          <input
+            id="reg-password"
+            type="password"
+            [(ngModel)]="regPassword"
+            name="password"
+            placeholder="Mínimo 6 caracteres"
+            autocomplete="new-password"
+            [disabled]="isLoading()"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-confirm">Confirmar contraseña</label>
+          <input
+            id="reg-confirm"
+            type="password"
+            [(ngModel)]="regPasswordConfirm"
+            name="passwordConfirm"
+            placeholder="Repite la contraseña"
+            autocomplete="new-password"
+            [disabled]="isLoading()"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn-auth" [disabled]="isLoading()">
+          @if (isLoading()) { <span class="spinner"></span> Registrando... }
+          @else { Crear cuenta }
+        </button>
+
+      </form>
+
+      <p class="auth-switch">
+        ¿Ya tienes cuenta?
+        <button class="link-btn" (click)="setTab('login')">Inicia sesión</button>
+      </p>
+    }
+
+  </div>
+</div>

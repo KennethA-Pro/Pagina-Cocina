@@ -2,6 +2,7 @@ import {
   Component,
   inject,
   signal,
+  computed,
   ViewChild,
   ElementRef,
   AfterViewChecked,
@@ -10,15 +11,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { ChatService, ChatMessage, RecipeCard } from './chat.service';
+import { AuthService } from './auth.service';
+import { AuthComponent } from './auth/auth.component';
 import { environment } from '../environments/environment';
 
-// Cuánto tiempo mínimo dura la animación de cocinando (ms)
 const COOKING_MIN_MS = 4500;
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, HttpClientModule],
+  imports: [CommonModule, FormsModule, HttpClientModule, AuthComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -27,19 +29,26 @@ export class App implements AfterViewChecked {
   @ViewChild('fileInput') fileInput!: ElementRef;
 
   private chatService = inject(ChatService);
+  authService = inject(AuthService);
 
   appName = environment.APP_NAME;
   appSubtitle = environment.APP_SUBTITLE;
 
   userInput = '';
   isLoading = signal(false);
-  isCooking = signal(false);          // animación de cocinando
+  isCooking = signal(false);
   cookingLabel = signal('Preparando tu receta...');
   selectedImage = signal<File | null>(null);
   imagePreview = signal<string | null>(null);
   errorMessage = signal<string | null>(null);
 
-  // Frases que rotan durante la animación
+  // Modal de auth
+  showAuthModal = signal(false);
+
+  // Computed: usuario logueado
+  usuario = computed(() => this.authService.usuario());
+  isLoggedIn = computed(() => this.authService.isLoggedIn);
+
   private cookingPhrases = [
     '🔪 Picando los ingredientes...',
     '🫕 Poniendo a calentar la sartén...',
@@ -59,6 +68,21 @@ export class App implements AfterViewChecked {
     this.scrollToBottom();
   }
 
+  // ===== Auth =====
+  openAuth(): void {
+    this.showAuthModal.set(true);
+  }
+
+  closeAuth(): void {
+    this.showAuthModal.set(false);
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.chatService.clearMessages();
+  }
+
+  // ===== Imagen =====
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -87,6 +111,7 @@ export class App implements AfterViewChecked {
     if (this.fileInput) this.fileInput.nativeElement.value = '';
   }
 
+  // ===== Helpers =====
   private parseRecipeCards(text: string): { clean: string; cards: RecipeCard[] | null } {
     const match = text.match(/```recetas\n([\s\S]*?)```/);
     if (!match) return { clean: text, cards: null };
@@ -99,7 +124,6 @@ export class App implements AfterViewChecked {
     }
   }
 
-  /** Detecta si el mensaje es una petición de receta (activa animación de cocinando) */
   private isRecipeRequest(text: string): boolean {
     return /pasos|preparar|hacer|cocinar|cómo\s+hago|cómo\s+preparo/i.test(text);
   }
@@ -122,9 +146,16 @@ export class App implements AfterViewChecked {
     this.isCooking.set(false);
   }
 
+  // ===== Enviar mensaje =====
   sendMessage(): void {
     const text = this.userInput.trim();
     const image = this.selectedImage();
+
+    // Las imágenes solo están disponibles en modo premium
+    if (image && !this.isLoggedIn()) {
+      this.errorMessage.set('Debes iniciar sesión para enviar imágenes. 📷');
+      return;
+    }
 
     if (!text && !image) return;
     if (this.isLoading()) return;
@@ -134,6 +165,7 @@ export class App implements AfterViewChecked {
       content: text || '📸 Imagen enviada',
       timestamp: new Date(),
       imagePreview: this.imagePreview() ?? undefined,
+      plan: this.isLoggedIn() ? 'premium' : 'free',
     };
     this.chatService.addMessage(userMsg);
 
@@ -142,13 +174,13 @@ export class App implements AfterViewChecked {
     this.isLoading.set(true);
     this.errorMessage.set(null);
 
-    // Activar animación de cocinando si el usuario pide una receta específica
     const showCooking = this.isRecipeRequest(userMsg.content) || !!image;
     if (showCooking) this.startCookingAnimation();
 
     const startTime = Date.now();
+    const usuarioId = this.usuario()?.usuario_id;
 
-    this.chatService.sendMessage(text, image ?? undefined).subscribe({
+    this.chatService.sendMessage(text, image ?? undefined, usuarioId).subscribe({
       next: (response) => {
         const raw = response.respuesta
           .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -164,9 +196,9 @@ export class App implements AfterViewChecked {
           videoUrl: response.video_url ?? undefined,
           videoTitulo: response.video_titulo ?? undefined,
           videoThumbnail: response.video_thumbnail ?? undefined,
+          plan: this.isLoggedIn() ? 'premium' : 'free',
         };
 
-        // Garantizar duración mínima de la animación
         const elapsed = Date.now() - startTime;
         const remaining = showCooking ? Math.max(0, COOKING_MIN_MS - elapsed) : 0;
 
@@ -208,6 +240,10 @@ export class App implements AfterViewChecked {
   }
 
   triggerFileInput(): void {
+    if (!this.isLoggedIn()) {
+      this.errorMessage.set('Debes iniciar sesión para enviar imágenes. 📷');
+      return;
+    }
     this.fileInput.nativeElement.click();
   }
 

@@ -1,0 +1,292 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "registro-usuario",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "2378c39b-2454-4be9-88fe-93d7a47576ca",
+      "name": "Webhook Registro",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "registro-usuario-001"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE EXTENSION IF NOT EXISTS pgcrypto;\n\nCREATE TABLE IF NOT EXISTS usuarios (\n  id SERIAL PRIMARY KEY,\n  nombre VARCHAR(100) DEFAULT 'Usuario',\n  email VARCHAR(255),\n  password TEXT,\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\nALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(255);\nALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password TEXT;\nCREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_unique ON usuarios (LOWER(email));",
+        "options": {}
+      },
+      "id": "780ecfbc-4a19-4517-bb3c-33fac0959206",
+      "name": "crear-tablas-auth",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "f7EdNg44IQ5OIj14",
+          "name": "Postgres account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH nuevo AS (\n  INSERT INTO usuarios (nombre, email, password)\n  VALUES ($1, LOWER($2), crypt($3, gen_salt('bf')))\n  ON CONFLICT (LOWER(email)) DO NOTHING\n  RETURNING id, nombre, email\n)\nSELECT id, nombre, email, true AS ok FROM nuevo\nUNION ALL\nSELECT NULL::int, NULL, LOWER($2), false AS ok\nWHERE NOT EXISTS (SELECT 1 FROM nuevo);",
+        "options": {
+          "queryReplacement": "={{ $json.body.nombre || 'Usuario' }},{{ $json.body.email }},{{ $json.body.password }}"
+        }
+      },
+      "id": "6f0174cb-ce58-4699-a1f1-26ba46dbab52",
+      "name": "registrar-usuario",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        448,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "f7EdNg44IQ5OIj14",
+          "name": "Postgres account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json || {};\nif (r.ok === true && r.id) {\n  return [{ json: { ok: true, usuario_id: r.id, nombre: r.nombre, email: r.email, mensaje: 'Usuario registrado correctamente' } }];\n}\nreturn [{ json: { ok: false, mensaje: 'El email ya está registrado' } }];"
+      },
+      "id": "8bcba970-3b44-4de1-9b4e-920001e04612",
+      "name": "formato-registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "26198049-68ba-4f75-86c4-56536554844b",
+      "name": "responder-registro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "login-usuario",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "bc772513-9987-4abd-b3bc-7cefee4736f2",
+      "name": "Webhook Login",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        224
+      ],
+      "webhookId": "login-usuario-001"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nombre, email\nFROM usuarios\nWHERE LOWER(email) = LOWER($1)\n  AND password = crypt($2, password)\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.email }},{{ $json.body.password }}"
+        }
+      },
+      "id": "39d69671-79b2-4722-b51d-a9009c181cad",
+      "name": "validar-login",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        224
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "f7EdNg44IQ5OIj14",
+          "name": "Postgres account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json || {};\nif (r && r.id) {\n  return [{ json: { ok: true, usuario_id: r.id, nombre: r.nombre, email: r.email, mensaje: 'Ingreso correcto' } }];\n}\nreturn [{ json: { ok: false, mensaje: 'Email o contraseña incorrectos' } }];"
+      },
+      "id": "609968a0-6f7c-4f48-ab97-6fb8ad999df5",
+      "name": "formato-login",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7f434d6a-decd-4a19-b5d7-bc326f0909c9",
+      "name": "responder-login",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "content": "🔐 Auth Usuarios\n\nDos endpoints (POST, JSON):\n\n1) /registro-usuario\n   body: { nombre, email, password }\n   → crea usuario con password cifrada (bcrypt/pgcrypto)\n   → responde { ok, usuario_id, nombre, email, mensaje }\n\n2) /login-usuario\n   body: { email, password }\n   → valida credenciales\n   → responde { ok, usuario_id, nombre, email, mensaje }\n\nUsa el usuario_id devuelto en el chatbot de recetas\n(enviándolo en body.usuario_id) para guardar el\nhistorial por usuario.\n\nMisma base de datos Postgres que el chatbot.",
+        "height": 320,
+        "width": 420,
+        "color": 4
+      },
+      "id": "45cbaf4a-a267-455c-9f84-7b87570a4c09",
+      "name": "nota-auth",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        928,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Registro": {
+      "main": [
+        [
+          {
+            "node": "crear-tablas-auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "crear-tablas-auth": {
+      "main": [
+        [
+          {
+            "node": "registrar-usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "registrar-usuario": {
+      "main": [
+        [
+          {
+            "node": "formato-registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "formato-registro": {
+      "main": [
+        [
+          {
+            "node": "responder-registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Login": {
+      "main": [
+        [
+          {
+            "node": "validar-login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validar-login": {
+      "main": [
+        [
+          {
+            "node": "formato-login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "formato-login": {
+      "main": [
+        [
+          {
+            "node": "responder-login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "12b523323c2d69758f5696ace3ece2ee4bdf57400ad98fc30aabbae19be815a8"
+  }
+}

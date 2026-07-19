@@ -1,18 +1,46 @@
 <div class="chat-wrapper">
 
-  <!-- Header -->
+  <!-- ===== Header ===== -->
   <header class="chat-header">
     <div class="header-info">
       <div class="avatar">🍳</div>
       <div>
         <h1>{{ appName }}</h1>
-        <span>{{ appSubtitle }}</span>
+        <span class="plan-badge" [class.premium]="isLoggedIn()">
+          @if (isLoggedIn()) { ⭐ Premium } @else { Versión gratuita }
+        </span>
       </div>
     </div>
-    <button class="btn-clear" (click)="clearChat()" title="Limpiar chat">🗑️</button>
+
+    <div class="header-actions">
+      <!-- Usuario logueado -->
+      @if (isLoggedIn()) {
+        <div class="user-info">
+          <span class="user-name">👤 {{ usuario()?.nombre }}</span>
+          <button class="btn-logout" (click)="logout()" title="Cerrar sesión">
+            Salir
+          </button>
+        </div>
+      } @else {
+        <!-- Botón iniciar sesión -->
+        <button class="btn-login" (click)="openAuth()">
+          🔑 Iniciar sesión
+        </button>
+      }
+
+      <button class="btn-clear" (click)="clearChat()" title="Limpiar chat">🗑️</button>
+    </div>
   </header>
 
-  <!-- Mensajes -->
+  <!-- Banner versión free -->
+  @if (!isLoggedIn()) {
+    <div class="free-banner">
+      <span>🎁 Estás en la versión gratuita — sin historial ni videos.</span>
+      <button class="free-banner-btn" (click)="openAuth()">Inicia sesión →</button>
+    </div>
+  }
+
+  <!-- ===== Mensajes ===== -->
   <div class="messages-container" #messagesContainer>
 
     <!-- Bienvenida -->
@@ -20,7 +48,13 @@
       <div class="welcome">
         <div class="welcome-icon">👨‍🍳</div>
         <h2>¡Hola! Soy tu Chef IA</h2>
-        <p>Dime qué ingredientes tienes o toma una foto de tu refri y te sugiero recetas.</p>
+        @if (isLoggedIn()) {
+          <p>Bienvenido, <strong>{{ usuario()?.nombre }}</strong>. Dime qué ingredientes tienes o toma una foto de tu refri.</p>
+        } @else {
+          <p>Dime qué ingredientes tienes y te sugiero recetas. <br/>
+            <button class="link-login" (click)="openAuth()">Inicia sesión</button> para acceder al chat completo con historial, imágenes y videos.
+          </p>
+        }
         <div class="suggestions">
           <button class="suggestion-chip" (click)="userInput = 'Tengo huevos, tomate, queso y cebolla'; sendMessage()">
             🥚 Huevos, tomate y queso
@@ -81,7 +115,7 @@
             </a>
           }
 
-          <!-- Tarjetas de recetas seleccionables -->
+          <!-- Tarjetas de recetas -->
           @if (msg.recipeCards && msg.recipeCards.length > 0) {
             <div class="recipe-cards">
               @for (card of msg.recipeCards; track card.id) {
@@ -110,7 +144,7 @@
       </div>
     }
 
-    <!-- ===== Animación de cocinando ===== -->
+    <!-- Animación cocinando -->
     @if (isCooking()) {
       <div class="message assistant cooking-message">
         <div class="msg-avatar">🍳</div>
@@ -131,7 +165,7 @@
       </div>
     }
 
-    <!-- Typing indicator normal (sin animación de cocina) -->
+    <!-- Typing indicator -->
     @if (isLoading() && !isCooking()) {
       <div class="message assistant">
         <div class="msg-avatar">🍳</div>
@@ -148,7 +182,7 @@
     <div class="error-banner">⚠️ {{ errorMessage() }}</div>
   }
 
-  <!-- Preview imagen seleccionada -->
+  <!-- Preview imagen -->
   @if (imagePreview()) {
     <div class="image-preview-bar">
       <img [src]="imagePreview()!" alt="Preview" />
@@ -157,25 +191,41 @@
     </div>
   }
 
-  <!-- Input -->
+  <!-- ===== Input ===== -->
   <div class="input-area">
     <input type="file" accept="image/*" #fileInput (change)="onFileSelected($event)" style="display:none" />
 
-    <button class="btn-attach" (click)="triggerFileInput()" title="Adjuntar imagen" [disabled]="isLoading()">
-      📷
+    <!-- El botón de imagen solo es funcional si hay sesión -->
+    <button
+      class="btn-attach"
+      (click)="triggerFileInput()"
+      [title]="isLoggedIn() ? 'Adjuntar imagen' : 'Inicia sesión para enviar imágenes'"
+      [disabled]="isLoading()"
+      [class.locked]="!isLoggedIn()"
+    >
+      {{ isLoggedIn() ? '📷' : '🔒' }}
     </button>
 
     <textarea
       [(ngModel)]="userInput"
       (keydown)="onKeyDown($event)"
-      placeholder="¿Qué ingredientes tienes?"
+      [placeholder]="isLoggedIn() ? '¿Qué ingredientes tienes?' : '¿Qué ingredientes tienes? (versión gratuita)'"
       [disabled]="isLoading()"
       rows="1"
     ></textarea>
 
-    <button class="btn-send" (click)="sendMessage()" [disabled]="isLoading() || (!userInput.trim() && !selectedImage())">
+    <button
+      class="btn-send"
+      (click)="sendMessage()"
+      [disabled]="isLoading() || (!userInput.trim() && !selectedImage())"
+    >
       @if (isLoading()) { ⏳ } @else { ➤ }
     </button>
   </div>
 
 </div>
+
+<!-- ===== Modal de autenticación ===== -->
+@if (showAuthModal()) {
+  <app-auth (cerrar)="closeAuth()"></app-auth>
+}

@@ -31,39 +31,141 @@ $radius-sm: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 12px 16px;
   background: $bg-card;
   border-bottom: 1px solid $border;
+  gap: 10px;
 
   .header-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    min-width: 0;
 
     .avatar {
-      font-size: 1.8rem;
+      font-size: 1.6rem;
       background: $primary;
-      width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
 
     h1 { font-size: 1rem; font-weight: 700; }
-    span { font-size: 0.75rem; color: $text-muted; }
   }
 
-  .btn-clear {
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+}
+
+// Plan badge (free / premium)
+.plan-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: $text-muted;
+  display: block;
+
+  &.premium {
+    color: #f5c542;
+  }
+}
+
+// Usuario logueado en header
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .user-name {
+    font-size: 0.78rem;
+    color: $text-muted;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// Botón iniciar sesión
+.btn-login {
+  background: $primary;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+
+  &:hover { background: $primary-dark; transform: translateY(-1px); }
+}
+
+// Botón cerrar sesión
+.btn-logout {
+  background: transparent;
+  border: 1px solid $border;
+  color: $text-muted;
+  border-radius: 20px;
+  padding: 5px 11px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+  }
+}
+
+.btn-clear {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 7px;
+  border-radius: $radius-sm;
+  transition: background 0.2s;
+  color: $text-muted;
+  &:hover { background: $bg-input; color: $text; }
+}
+
+// ===== Banner versión free =====
+.free-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #1e1a14;
+  border-bottom: 1px solid #3d2e10;
+  font-size: 0.78rem;
+  color: #c8a84b;
+
+  .free-banner-btn {
     background: none;
-    border: none;
-    font-size: 1.2rem;
+    border: 1px solid #c8a84b;
+    color: #c8a84b;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 0.74rem;
+    font-weight: 700;
     cursor: pointer;
-    padding: 8px;
-    border-radius: $radius-sm;
-    transition: background 0.2s;
-    &:hover { background: $bg-input; }
+    white-space: nowrap;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #c8a84b;
+      color: #1e1a14;
+    }
   }
 }
 
@@ -121,6 +223,20 @@ $radius-sm: 10px;
       color: $primary;
     }
   }
+}
+
+// Link iniciar sesión dentro del welcome
+.link-login {
+  background: none;
+  border: none;
+  color: $primary;
+  font-size: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+
+  &:hover { color: $primary-dark; }
 }
 
 // ===== Message =====
@@ -583,6 +699,7 @@ $radius-sm: 10px;
     color: $text;
     &:hover:not(:disabled) { background: $border; }
     &:disabled { opacity: 0.4; cursor: not-allowed; }
+    &.locked { color: $text-muted; }
   }
 
   .btn-send {

@@ -1,0 +1,178 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot-recetas-free",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "92e8270c-d202-40c9-a7b9-c73e24f5454e",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        112
+      ],
+      "webhookId": "chatbot-recetas-free-001"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "mensaje",
+              "value": "={{ $('Webhook').item.json.body.message ?? '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b951c082-c95a-4b90-96ab-307dfa4f27e0",
+      "name": "extraer-mensaje",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Mensaje del usuario:\n{{ $json.mensaje }}",
+        "options": {
+          "systemMessage": "Eres un chef profesional ecuatoriano y un asistente de cocina especializado en gastronomía del Ecuador y de Latinoamérica.\n\nTu objetivo es recomendar recetas utilizando los ingredientes que el usuario tenga disponibles, priorizando siempre recetas típicas del Ecuador.\n\nPRIORIDAD DE LAS RECETAS:\n1. Recetas tradicionales del Ecuador.\n2. Recetas típicas latinoamericanas.\n3. Recetas internacionales solo si no hay otra opción.\n\nFORMATO DE RESPUESTA:\n- Responde SIEMPRE en español.\n- Mantén respuestas cortas (máximo 3 o 4 líneas).\n- Usa **negritas** para los nombres de las recetas.\n- Cuando el usuario dé ingredientes, sugiere máximo 3 recetas, priorizando las ecuatorianas.\n- Cuando el usuario elija una receta, devuelve máximo 6 pasos, breves.\n\nVERSIÓN GRATUITA:\n- Esta es la versión gratuita: solo respondes con texto.\n- Nunca ofrezcas ni menciones imágenes de las recetas ni videos de YouTube. Si el usuario los pide, indícale amablemente que las imágenes y los videos están disponibles al iniciar sesión en la versión completa.\n\nTEMAS NO PERMITIDOS:\n- Si preguntan algo fuera de cocina responde exactamente: \"Solo puedo ayudarte con recetas 🍳 ¿Qué tienes en tu cocina?\""
+        }
+      },
+      "id": "04d4ac04-eb1f-4790-8ec3-a8f138a51633",
+      "name": "agente-recetas",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        448,
+        112
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "id": "f6c61f98-d0a8-47b9-b289-f2063c8ade8d",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        528,
+        336
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "OX0XD8Lww1KRZPoY",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ respuesta: $json.output, plan: 'free' }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "99553feb-eda3-4e87-8dca-27a58311c071",
+      "name": "responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "content": "🍽️ Chatbot de Recetas — VERSIÓN GRATUITA\n\nSin login, sin base de datos, sin historial.\nSolo devuelve la respuesta de texto del modelo.\n\n📥 Webhook (POST) recibe:\n  - body.message: texto del usuario\n\n🔄 Flujo:\n  Webhook → extraer-mensaje → agente-recetas (Groq) → responder\n\n📤 responder devuelve:\n  { respuesta, plan: \"free\" }\n\n⚠️ Sin imágenes ni videos: esos son solo para la\nversión con sesión iniciada (el otro workflow).",
+        "height": 300,
+        "width": 420,
+        "color": 4
+      },
+      "id": "0ae8d25a-55c9-4a3a-9b16-c05032001498",
+      "name": "nota-free",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        384
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "extraer-mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extraer-mensaje": {
+      "main": [
+        [
+          {
+            "node": "agente-recetas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agente-recetas": {
+      "main": [
+        [
+          {
+            "node": "responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "agente-recetas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "12b523323c2d69758f5696ace3ece2ee4bdf57400ad98fc30aabbae19be815a8"
+  }
+}
