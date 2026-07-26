@@ -19,7 +19,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "CREATE EXTENSION IF NOT EXISTS pgcrypto;\n\nCREATE TABLE IF NOT EXISTS usuarios (\n  id SERIAL PRIMARY KEY,\n  nombre VARCHAR(100) DEFAULT 'Usuario',\n  email VARCHAR(255),\n  password TEXT,\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\nCREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_unique ON usuarios (LOWER(email));\n\nSELECT setval(\n  pg_get_serial_sequence('usuarios', 'id'),\n  GREATEST(COALESCE((SELECT MAX(id) FROM usuarios), 0), 1)\n);",
+        "query": "CREATE EXTENSION IF NOT EXISTS pgcrypto;\nCREATE TABLE IF NOT EXISTS usuarios (\n  id SERIAL PRIMARY KEY,\n  nombre VARCHAR(100) DEFAULT 'Usuario',\n  email VARCHAR(255),\n  password TEXT,\n  created_at TIMESTAMP DEFAULT NOW()\n);\nCREATE UNIQUE INDEX IF NOT EXISTS usuarios_email_unique ON usuarios (LOWER(email));",
         "options": {}
       },
       "id": "780ecfbc-4a19-4517-bb3c-33fac0959206",
@@ -37,13 +37,13 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH check_existente AS (\n  SELECT id, nombre, email FROM usuarios WHERE LOWER(email) = LOWER($2) LIMIT 1\n),\nnuevo AS (\n  INSERT INTO usuarios (nombre, email, password)\n  SELECT $1, LOWER($2), crypt($3, gen_salt('bf'))\n  WHERE NOT EXISTS (SELECT 1 FROM check_existente)\n  RETURNING id, nombre, email\n)\nSELECT id, nombre, email, TRUE AS ok FROM nuevo\nUNION ALL\nSELECT NULL::int, NULL::varchar, LOWER($2)::varchar, FALSE AS ok\nWHERE NOT EXISTS (SELECT 1 FROM nuevo);",
+        "query": "SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1) LIMIT 1;",
         "options": {
-          "queryReplacement": "={{ $json.body.nombre || 'Usuario' }},={{ $json.body.email }},={{ $json.body.password }}"
+          "queryReplacement": "={{ $('Webhook Registro').first().json.body.email }}"
         }
       },
-      "id": "6f0174cb-ce58-4699-a1f1-26ba46dbab52",
-      "name": "registrar-usuario",
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "verificar-email-existe",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [448, 0],
@@ -57,13 +57,82 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n\n// Buscar la fila donde ok es verdadero y tiene id válido\nconst exito = items.find(item => {\n  const r = item.json || {};\n  return (r.ok === true || r.ok === 'true') && r.id !== null && r.id !== undefined;\n});\n\nif (exito) {\n  const r = exito.json;\n  return [{ json: { ok: true, usuario_id: r.id, nombre: r.nombre, email: r.email, mensaje: 'Usuario registrado correctamente' } }];\n}\n\nreturn [{ json: { ok: false, mensaje: 'El email ya está registrado. Prueba iniciando sesión.' } }];"
+        "jsCode": "// Si la query devolvió una fila con id, el email ya existe\nconst items = $input.all();\nconst existe = items.some(item => item.json && item.json.id !== null && item.json.id !== undefined);\n\nconst body = $('Webhook Registro').first().json.body || {};\n\nreturn [{\n  json: {\n    email_existe: existe,\n    nombre: body.nombre || 'Usuario',\n    email: body.email,\n    password: body.password\n  }\n}];"
       },
-      "id": "8bcba970-3b44-4de1-9b4e-920001e04612",
-      "name": "formato-registro",
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "evaluar-email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [672, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-email-libre",
+              "leftValue": "={{ $json.email_existe }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "if-email-libre",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [896, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO usuarios (nombre, email, password)\nVALUES ($1, LOWER($2), crypt($3, gen_salt('bf')))\nRETURNING id, nombre, email;",
+        "options": {
+          "queryReplacement": "={{ $json.nombre }},={{ $json.email }},={{ $json.password }}"
+        }
+      },
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "insertar-usuario",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1120, -80],
+      "credentials": {
+        "postgres": {
+          "id": "f7EdNg44IQ5OIj14",
+          "name": "Postgres account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first()?.json || {};\nif (r.id) {\n  return [{ json: { ok: true, usuario_id: r.id, nombre: r.nombre, email: r.email, mensaje: 'Usuario registrado correctamente' } }];\n}\nreturn [{ json: { ok: false, mensaje: 'Error al crear el usuario. Intenta de nuevo.' } }];"
+      },
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "formato-registro-ok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1344, -80]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: false, mensaje: 'El email ya está registrado. Prueba iniciando sesión.' } }];"
+      },
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "formato-registro-duplicado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 80]
     },
     {
       "parameters": {
@@ -88,7 +157,7 @@
       "name": "responder-registro",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [896, 0]
+      "position": [1568, 0]
     },
     {
       "parameters": {
@@ -103,7 +172,7 @@
       "name": "Webhook Login",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [0, 224],
+      "position": [0, 400],
       "webhookId": "login-usuario-001"
     },
     {
@@ -118,7 +187,7 @@
       "name": "validar-login",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [224, 224],
+      "position": [224, 400],
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
@@ -135,7 +204,7 @@
       "name": "formato-login",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [448, 224]
+      "position": [448, 400]
     },
     {
       "parameters": {
@@ -160,20 +229,20 @@
       "name": "responder-login",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [672, 224]
+      "position": [672, 400]
     },
     {
       "parameters": {
-        "content": "🔐 Auth Usuarios\n\nDos endpoints (POST, JSON):\n\n1) /registro-usuario\n   body: { nombre, email, password }\n   → crea usuario con password cifrada (bcrypt/pgcrypto)\n   → responde { ok, usuario_id, nombre, email, mensaje }\n\n2) /login-usuario\n   body: { email, password }\n   → valida credenciales\n   → responde { ok, usuario_id, nombre, email, mensaje }\n\nCORRECCIONES v2:\n- registrar-usuario: usa SELECT...WHERE NOT EXISTS para evitar race conditions\n- formato-registro: itera todos los items y acepta ok como boolean o string\n- formato-login: verifica r.id !== null además de existencia\n- validar-login: queryReplacement usa ={{ }} correcto\n- crear-tablas-auth: sincroniza el serial con setval",
-        "height": 340,
-        "width": 440,
+        "content": "🔐 Auth Usuarios v3\n\n📌 FLUJO REGISTRO:\nWebhook → crear-tablas → verificar-email-existe → evaluar-email → if-email-libre\n  ✅ Email libre  → insertar-usuario → formato-ok → responder\n  ❌ Email existe → formato-duplicado → responder\n\n📌 FLUJO LOGIN:\nWebhook → validar-login (SELECT con crypt) → formato-login → responder\n\n⚠️ CORRECCIÓN v3:\n- Se eliminó el CTE (WITH) que n8n no soporta con $params\n- Registro dividido en nodos separados: verificar, decidir, insertar\n- Cada nodo Postgres usa una sola query simple sin CTEs",
+        "height": 280,
+        "width": 480,
         "color": 4
       },
       "id": "45cbaf4a-a267-455c-9f84-7b87570a4c09",
       "name": "nota-auth",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [928, 240]
+      "position": [0, 600]
     }
   ],
   "connections": {
@@ -181,12 +250,27 @@
       "main": [[{ "node": "crear-tablas-auth", "type": "main", "index": 0 }]]
     },
     "crear-tablas-auth": {
-      "main": [[{ "node": "registrar-usuario", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "verificar-email-existe", "type": "main", "index": 0 }]]
     },
-    "registrar-usuario": {
-      "main": [[{ "node": "formato-registro", "type": "main", "index": 0 }]]
+    "verificar-email-existe": {
+      "main": [[{ "node": "evaluar-email", "type": "main", "index": 0 }]]
     },
-    "formato-registro": {
+    "evaluar-email": {
+      "main": [[{ "node": "if-email-libre", "type": "main", "index": 0 }]]
+    },
+    "if-email-libre": {
+      "main": [
+        [{ "node": "insertar-usuario", "type": "main", "index": 0 }],
+        [{ "node": "formato-registro-duplicado", "type": "main", "index": 0 }]
+      ]
+    },
+    "insertar-usuario": {
+      "main": [[{ "node": "formato-registro-ok", "type": "main", "index": 0 }]]
+    },
+    "formato-registro-ok": {
+      "main": [[{ "node": "responder-registro", "type": "main", "index": 0 }]]
+    },
+    "formato-registro-duplicado": {
       "main": [[{ "node": "responder-registro", "type": "main", "index": 0 }]]
     },
     "Webhook Login": {
